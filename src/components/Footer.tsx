@@ -1,3 +1,5 @@
+import { Logo } from "./Logo";
+
 const LINKS = ["Robinhood Chain", "Docs", "X", "Discord", "GitHub"];
 
 export function Footer() {
@@ -5,7 +7,7 @@ export function Footer() {
     <footer className="border-t-2 border-border">
       <div className="max-w-6xl mx-auto px-6 py-16 flex flex-col md:flex-row md:items-end justify-between gap-10">
         <div>
-          <span className="font-pixel text-sm">Echo</span>
+          <Logo />
           <p className="mt-4 text-sm text-ink/70 leading-relaxed max-w-xs">
             Prompt an Agent.
             <br />
