@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  image-rendering: pixelated;
+}
+
+body {
+  background-color: #F5F2E8;
+  color: #1E1E1E;
+}
+
+@layer utilities {
+  .pixel-border {
+    border: 2px solid #6B665C;
+  }
+  .pixel-border-thick {
+    border: 3px solid #1E1E1E;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
