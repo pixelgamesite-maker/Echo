@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { WalletConnectButton } from "./WalletConnectButton";
+import { Logo } from "./Logo";
 
 const LINKS = [
   { label: "Mint", to: "/mint" },
@@ -25,8 +26,8 @@ export function Navigation() {
       className="sticky top-0 z-50 bg-cream border-b-2 border-border"
     >
       <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-        <Link to="/" className="font-pixel text-sm" onClick={() => setOpen(false)}>
-          Echo
+        <Link to="/" onClick={() => setOpen(false)} aria-label="Echo home">
+          <Logo />
         </Link>
 
         {/* Desktop links */}
