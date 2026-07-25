@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card } from "./ui/Card";
+import { Link } from "react-router-dom";
 import { Button } from "./ui/Button";
 
 const EXAMPLES = [
@@ -46,8 +47,8 @@ export function MintWindow() {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-4">
-            <Button variant="secondary">Preview</Button>
-            <Button variant="primary">Mint Agent</Button>
+            <Link to="/mint"><Button variant="secondary">Preview</Button></Link>
+            <Link to="/mint"><Button variant="primary">Mint Agent</Button></Link>
           </div>
         </div>
       </Card>

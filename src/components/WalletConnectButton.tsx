@@ -1,18 +1,31 @@
-import { useState } from "react";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { Button } from "./ui/Button";
 
-// Placeholder — swap the onClick body for real wagmi useConnect() once
-// wallet integration is wired up.
 export function WalletConnectButton() {
-  const [connected, setConnected] = useState(false);
+  const { address, isConnected } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+
+  if (isConnected && address) {
+    return (
+      <Button
+        variant="secondary"
+        className="text-[10px] px-4 py-2.5"
+        onClick={() => disconnect()}
+        title="Click to disconnect"
+      >
+        {address.slice(0, 6)}…{address.slice(-4)}
+      </Button>
+    );
+  }
 
   return (
     <Button
       variant="secondary"
       className="text-[10px] px-4 py-2.5"
-      onClick={() => setConnected((c) => !c)}
+      onClick={() => connect({ connector: connectors[0] })}
     >
-      {connected ? "0x9F2…c81A" : "Connect Wallet"}
+      Connect Wallet
     </Button>
   );
 }
