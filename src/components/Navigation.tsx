@@ -6,7 +6,6 @@ import { WalletConnectButton } from "./WalletConnectButton";
 import { Logo } from "./Logo";
 
 const LINKS = [
-  { label: "Mint", to: "/mint" },
   { label: "Explore", to: "/#explore" },
   { label: "My Agents", to: "/my-agents" },
   { label: "Collections", to: "/#collections" },
