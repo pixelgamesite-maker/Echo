@@ -9,7 +9,8 @@ const LINKS = [
   { label: "Explore", to: "/#explore" },
   { label: "My Agents", to: "/my-agents" },
   { label: "Collections", to: "/#collections" },
-  { label: "Docs", to: "#" },
+  { label: "Docs", to: "/docs" },
+  { label: "About", to: "/about" },
 ];
 
 export function Navigation() {
