@@ -7,6 +7,8 @@ import { Footer } from "./components/Footer";
 import HomePage from "./pages/HomePage";
 import MintPage from "./pages/MintPage";
 import MyAgentsPage from "./pages/MyAgentsPage";
+import DocsPage from "./pages/DocsPage";
+import AboutPage from "./pages/AboutPage";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +24,8 @@ export default function App() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/mint" element={<MintPage />} />
                 <Route path="/my-agents" element={<MyAgentsPage />} />
+                <Route path="/docs" element={<DocsPage />} />
+                <Route path="/about" element={<AboutPage />} />
               </Routes>
             </div>
             <Footer />
