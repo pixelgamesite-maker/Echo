@@ -1,5 +1,5 @@
 import { createConfig, http } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { injected, walletConnect } from "wagmi/connectors";
 import { defineChain } from "viem";
 
 const mainnetRpc =
@@ -30,9 +30,26 @@ export const robinhoodChainTestnet = defineChain({
 
 const useTestnet = import.meta.env.VITE_USE_TESTNET === "true";
 
+const wcProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined;
+
 export const wagmiConfig = createConfig({
   chains: useTestnet ? [robinhoodChainTestnet] : [robinhoodChain],
-  connectors: [injected()],
+  connectors: [
+    injected(),
+    ...(wcProjectId
+      ? [
+          walletConnect({
+            projectId: wcProjectId,
+            metadata: {
+              name: "Equix AI",
+              description: "Prompt an Agent. Mint it Forever.",
+              url: "https://equix.ai",
+              icons: [],
+            },
+          }),
+        ]
+      : []),
+  ],
   transports: {
     [robinhoodChain.id]: http(mainnetRpc),
     [robinhoodChainTestnet.id]: http(testnetRpc),
