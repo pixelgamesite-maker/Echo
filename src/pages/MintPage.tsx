@@ -132,7 +132,7 @@ export default function MintPage() {
       {/* ---- Cycling showcase, A NONYM style ---- */}
       <div className="border border-dashed border-border p-8 md:p-12">
         <div className="aspect-square max-w-sm mx-auto">
-          <PixelShowcase base={show.base} variantCells={show.variant.cells} />
+          <PixelShowcase base={show.base} variantCells={show.variant.cells} subframe={show.subframe} />
         </div>
       </div>
 
