@@ -4,8 +4,6 @@ import { defineChain } from "viem";
 
 const mainnetRpc =
   import.meta.env.VITE_RPC_URL_MAINNET || "https://rpc.mainnet.chain.robinhood.com";
-const testnetRpc =
-  import.meta.env.VITE_RPC_URL_TESTNET || "https://rpc.testnet.chain.robinhood.com";
 
 export const robinhoodChain = defineChain({
   id: 4663,
@@ -17,23 +15,10 @@ export const robinhoodChain = defineChain({
   },
 });
 
-export const robinhoodChainTestnet = defineChain({
-  id: 46630,
-  name: "Robinhood Chain Testnet",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: [testnetRpc] } },
-  blockExplorers: {
-    default: { name: "Explorer", url: "https://explorer.testnet.chain.robinhood.com" },
-  },
-  testnet: true,
-});
-
-const useTestnet = import.meta.env.VITE_USE_TESTNET === "true";
-
 const wcProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined;
 
 export const wagmiConfig = createConfig({
-  chains: useTestnet ? [robinhoodChainTestnet] : [robinhoodChain],
+  chains: [robinhoodChain],
   connectors: [
     injected(),
     ...(wcProjectId
@@ -42,7 +27,7 @@ export const wagmiConfig = createConfig({
             projectId: wcProjectId,
             metadata: {
               name: "Equix AI",
-              description: "Prompt an Agent. Mint it Forever.",
+              description: "9,491 animated agent identities on Robinhood Chain.",
               url: "https://equix.ai",
               icons: [],
             },
@@ -52,8 +37,7 @@ export const wagmiConfig = createConfig({
   ],
   transports: {
     [robinhoodChain.id]: http(mainnetRpc),
-    [robinhoodChainTestnet.id]: http(testnetRpc),
   },
 });
 
-export const activeChain = useTestnet ? robinhoodChainTestnet : robinhoodChain;
+export const activeChain = robinhoodChain;
