@@ -3,6 +3,7 @@ import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { parseEther, formatEther } from "viem";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { LiveMintFeed } from "@/components/LiveMintFeed";
+import { PixelShowcase, usePixelShowcase } from "@/components/PixelShowcase";
 import { EQUIX_ADDRESS, equixAbi } from "@/lib/contract";
 import { activeChain } from "@/lib/wagmiConfig";
 
@@ -23,6 +24,7 @@ export default function MintPage() {
   const [customQty, setCustomQty] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const show = usePixelShowcase();
 
   const { data: totalSupply } = useReadContract({
     address: EQUIX_ADDRESS, abi: equixAbi, functionName: "totalSupply",
@@ -97,6 +99,17 @@ export default function MintPage() {
         <h1 className="text-[18px] mb-2">EQUIX AI</h1>
         <p className="text-[11px] text-ink/50 mb-8 font-sans">
           9,491 animated agent identities on Robinhood Chain.
+        </p>
+
+        {/* ---- Decorative preview: cycles the 20 hand-drawn variants.
+             Purely illustrative now — no longer tied to user prompts. ---- */}
+        <div className="border border-dashed border-border p-8 mb-3">
+          <div className="aspect-square max-w-xs mx-auto">
+            <PixelShowcase base={show.base} variantCells={show.variant.cells} subframe={show.subframe} />
+          </div>
+        </div>
+        <p className="text-center text-[9px] text-ink/40 mb-10">
+          A preview of the collection's style — actual identities reveal after mint closes.
         </p>
 
         {/* ---- Supply ---- */}
