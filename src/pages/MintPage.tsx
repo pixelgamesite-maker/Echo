@@ -1,281 +1,197 @@
 import { useMemo, useState } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
-import { parseEther } from "viem";
-import { PixelShowcase, usePixelShowcase } from "@/components/PixelShowcase";
+import { parseEther, formatEther } from "viem";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { LiveMintFeed } from "@/components/LiveMintFeed";
 import { EQUIX_ADDRESS, equixAbi } from "@/lib/contract";
+import { activeChain } from "@/lib/wagmiConfig";
 
-const MAX_SUPPLY = 9491;
-const PRICE_ETH = 0.0004;
-const MAX_PER_WALLET = 5;
+const PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
 
-const FIELDS = [
-  { key: "hair", label: "HAIR", placeholder: "mohawk" },
-  { key: "eyes", label: "EYES", placeholder: "focused" },
-  { key: "mouth", label: "MOUTH", placeholder: "smirk" },
-  { key: "cloth", label: "CLOTH", placeholder: "field jacket" },
-  { key: "accessories", label: "GEAR", placeholder: "gold chain" },
-];
+const EXPLORER_URL = `${activeChain.blockExplorers?.default.url}/address/${EQUIX_ADDRESS}`;
+const OPENSEA_URL =
+  (import.meta.env.VITE_OPENSEA_URL as string | undefined) ??
+  `https://opensea.io/assets/robinhood/${EQUIX_ADDRESS}`;
 
-const BASES = ["male", "female", "robot", "pet"] as const;
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
-
-type Phase = "form" | "generating" | "previewed" | "authorizing" | "minting" | "done" | "error";
+type Phase = "idle" | "minting" | "done" | "error";
 
 export default function MintPage() {
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
-  const show = usePixelShowcase();
 
-  const [base, setBase] = useState<(typeof BASES)[number] | null>(null);
-  const [traits, setTraits] = useState<Record<string, string>>({});
   const [qty, setQty] = useState(1);
-  const [phase, setPhase] = useState<Phase>("form");
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [generationIds, setGenerationIds] = useState<string[]>([]);
+  const [customQty, setCustomQty] = useState("");
+  const [phase, setPhase] = useState<Phase>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const { data: minted } = useReadContract({
-    address: EQUIX_ADDRESS,
-    abi: equixAbi,
-    functionName: "totalMinted",
-    query: { enabled: !!EQUIX_ADDRESS, refetchInterval: 15_000 },
+  const { data: totalSupply } = useReadContract({
+    address: EQUIX_ADDRESS, abi: equixAbi, functionName: "totalSupply",
+    query: { enabled: !!EQUIX_ADDRESS, refetchInterval: 12_000 },
+  });
+  const { data: maxSupply } = useReadContract({
+    address: EQUIX_ADDRESS, abi: equixAbi, functionName: "MAX_SUPPLY",
+    query: { enabled: !!EQUIX_ADDRESS },
+  });
+  const { data: mintPrice } = useReadContract({
+    address: EQUIX_ADDRESS, abi: equixAbi, functionName: "mintPrice",
+    query: { enabled: !!EQUIX_ADDRESS },
+  });
+  const { data: maxPerWallet } = useReadContract({
+    address: EQUIX_ADDRESS, abi: equixAbi, functionName: "maxPerWallet",
+    query: { enabled: !!EQUIX_ADDRESS },
+  });
+  const { data: mintedByMe } = useReadContract({
+    address: EQUIX_ADDRESS, abi: equixAbi, functionName: "mintedPerWallet",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
   });
 
-  const mintedN = Number((minted as bigint | undefined) ?? 0n);
-  const pct = ((mintedN / MAX_SUPPLY) * 100).toFixed(2);
-  const filled = FIELDS.every((f) => (traits[f.key] ?? "").trim());
-  const total = (PRICE_ETH * qty).toFixed(4);
+  const minted = Number((totalSupply as bigint | undefined) ?? 0n);
+  const max = Number((maxSupply as bigint | undefined) ?? 9491n);
+  const priceEach = mintPrice ? Number(formatEther(mintPrice as bigint)) : 0.0004;
+  const wallCap = Number((maxPerWallet as bigint | undefined) ?? 50n);
+  const already = Number((mintedByMe as bigint | undefined) ?? 0n);
+  const remaining = Math.max(0, wallCap - already);
 
-  // Supply bar: 48 pixel blocks, filled proportionally
+  const pct = ((minted / max) * 100).toFixed(2);
   const blocks = useMemo(() => {
-    const filledBlocks = Math.round((mintedN / MAX_SUPPLY) * 48);
-    return Array.from({ length: 48 }, (_, i) => i < filledBlocks);
-  }, [mintedN]);
+    const filled = Math.round((minted / max) * 48);
+    return Array.from({ length: 48 }, (_, i) => i < filled);
+  }, [minted, max]);
 
-  async function generate() {
-    if (!base || !filled || !address) return;
-    setPhase("generating");
-    setErrorMsg(null);
-    try {
-      const results = await Promise.all(
-        Array.from({ length: qty }, async () => {
-          const res = await fetch(`${API}/api/generate`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ base, traits, wallet: address }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error ?? "Generation failed");
-          return data;
-        })
-      );
-      setPreviews(results.map((r) => r.preview));
-      setGenerationIds(results.map((r) => r.generationId));
-      setPhase("previewed");
-    } catch (e: any) {
-      setErrorMsg(e.message);
-      setPhase("error");
-    }
+  const total = (priceEach * qty).toFixed(4);
+
+  function pick(n: number) {
+    setQty(Math.min(n, remaining || n));
+    setCustomQty("");
+  }
+
+  function onCustomChange(v: string) {
+    setCustomQty(v);
+    const n = parseInt(v, 10);
+    if (!isNaN(n) && n > 0) setQty(Math.min(n, remaining || n));
   }
 
   async function mint() {
-    if (!address || generationIds.length === 0) return;
-    setPhase("authorizing");
+    if (!address || qty < 1) return;
+    setPhase("minting");
     setErrorMsg(null);
     try {
-      const auths = await Promise.all(
-        generationIds.map(async (generationId) => {
-          const res = await fetch(`${API}/api/authorize`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ generationId, wallet: address }),
-          });
-          const a = await res.json();
-          if (!res.ok) throw new Error(a.error ?? "Authorization failed");
-          return a;
-        })
-      );
-
-      setPhase("minting");
-      if (auths.length === 1) {
-        await writeContractAsync({
-          address: EQUIX_ADDRESS,
-          abi: equixAbi,
-          functionName: "mint",
-          args: [auths[0].uri, BigInt(auths[0].nonce), BigInt(auths[0].deadline), auths[0].signature],
-          value: parseEther(String(PRICE_ETH)),
-        });
-      } else {
-        await writeContractAsync({
-          address: EQUIX_ADDRESS,
-          abi: equixAbi,
-          functionName: "mintBatch",
-          args: [
-            auths.map((a) => a.uri),
-            auths.map((a) => BigInt(a.nonce)),
-            auths.map((a) => BigInt(a.deadline)),
-            auths.map((a) => a.signature),
-          ],
-          value: parseEther(String(PRICE_ETH * auths.length)),
-        });
-      }
+      await writeContractAsync({
+        address: EQUIX_ADDRESS,
+        abi: equixAbi,
+        functionName: "mint",
+        args: [BigInt(qty)],
+        value: parseEther(total),
+      });
       setPhase("done");
     } catch (e: any) {
-      setErrorMsg(e.message ?? "Mint failed");
+      setErrorMsg(e.shortMessage ?? e.message ?? "Mint failed");
       setPhase("error");
     }
   }
 
   return (
-    <main className="max-w-2xl mx-auto px-6 py-10 font-pixel">
-      {/* ---- Cycling showcase, A NONYM style ---- */}
-      <div className="border border-dashed border-border p-8 md:p-12">
-        <div className="aspect-square max-w-sm mx-auto">
-          <PixelShowcase base={show.base} variantCells={show.variant.cells} subframe={show.subframe} />
-        </div>
-      </div>
+    <>
+      <main className="max-w-2xl mx-auto px-6 py-10 font-pixel">
+        <h1 className="text-[18px] mb-2">EQUIX AI</h1>
+        <p className="text-[11px] text-ink/50 mb-8 font-sans">
+          9,491 animated agent identities on Robinhood Chain.
+        </p>
 
-      {/* ---- Trait readout ---- */}
-      <div className="mt-8 space-y-3 text-[11px]">
-        <div className="flex justify-between"><span className="text-ink/50">BASE</span><span>{show.base.toUpperCase()}</span></div>
-        <div className="flex justify-between"><span className="text-ink/50">VARIANT</span><span>{show.variant.name}</span></div>
-        <div className="flex justify-between"><span className="text-ink/50">PALETTE</span><span>CREAM / INK / SAGE</span></div>
-      </div>
-
-      <p className="mt-6 text-[10px] text-ink/50 leading-relaxed">
-        4 BASES × 5 FREEFORM TRAITS = ∞ COMBINATIONS. YOUR WORDS, NOT OUR LIST.
-      </p>
-
-      {/* ---- Supply ---- */}
-      <div className="mt-12">
-        <div className="flex justify-between text-[12px] mb-3">
-          <span className="font-bold">SUPPLY</span>
-          <span>
-            {mintedN.toLocaleString()} / {MAX_SUPPLY.toLocaleString()}{" "}
-            <span className="text-ink/40">{pct}%</span>
-          </span>
+        {/* ---- Supply ---- */}
+        <div className="mb-8">
+          <div className="flex justify-between text-[12px] mb-3">
+            <span className="font-bold">SUPPLY</span>
+            <span>
+              {minted.toLocaleString()} / {max.toLocaleString()}{" "}
+              <span className="text-ink/40">{pct}%</span>
+            </span>
+          </div>
+          <div className="flex gap-[3px] h-8">
+            {blocks.map((f, i) => (
+              <div key={i} className={`flex-1 ${f ? "bg-ink" : "bg-ink/15"}`} />
+            ))}
+          </div>
         </div>
-        <div className="flex gap-[3px] h-8">
-          {blocks.map((f, i) => (
-            <div key={i} className={`flex-1 ${f ? "bg-ink" : "bg-ink/15"}`} />
-          ))}
-        </div>
-      </div>
 
-      {/* ---- Price row ---- */}
-      <div className="mt-10 pt-8 border-t border-ink/15 grid grid-cols-3 gap-4 text-[11px]">
-        <div>
-          <p className="text-ink/50 mb-2">PRICE</p>
-          <p className="text-[14px]">{PRICE_ETH} ETH</p>
+        {/* ---- Price row ---- */}
+        <div className="grid grid-cols-3 gap-4 text-[11px] mb-8 pb-8 border-b border-ink/15">
+          <div><p className="text-ink/50 mb-2">PRICE</p><p className="text-[14px]">{priceEach} ETH</p></div>
+          <div><p className="text-ink/50 mb-2">MAX / WALLET</p><p className="text-[14px]">{wallCap}</p></div>
+          <div><p className="text-ink/50 mb-2">YOU'VE MINTED</p><p className="text-[14px]">{already}</p></div>
         </div>
-        <div>
-          <p className="text-ink/50 mb-2">MAX / WALLET</p>
-          <p className="text-[14px]">{MAX_PER_WALLET}</p>
-        </div>
-        <div>
-          <p className="text-ink/50 mb-2">MINT TYPE</p>
-          <p className="text-[14px]">PUBLIC</p>
-        </div>
-      </div>
 
-      {/* ---- Prompt console ---- */}
-      <div className="mt-10 pt-8 border-t border-ink/15">
-        <p className="text-[12px] font-bold mb-5">PROMPT YOUR AGENT</p>
-
-        <div className="grid grid-cols-4 gap-2 mb-5">
-          {BASES.map((b) => (
+        {/* ---- Quantity presets ---- */}
+        <p className="text-[11px] text-ink/50 mb-3">AMOUNT</p>
+        <div className="grid grid-cols-5 gap-2 mb-4">
+          {PRESETS.map((n) => (
             <button
-              key={b}
-              onClick={() => setBase(b)}
-              className={`text-[9px] py-3 border transition-colors ${
-                base === b ? "border-sage text-sage" : "border-border text-ink hover:border-ink"
+              key={n}
+              onClick={() => pick(n)}
+              disabled={n > wallCap}
+              className={`text-[12px] py-3 border transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                qty === n && !customQty ? "border-sage text-sage" : "border-border text-ink hover:border-ink"
               }`}
             >
-              {b.toUpperCase()}
+              {n}
             </button>
           ))}
         </div>
 
-        <div className="space-y-3">
-          {FIELDS.map((f) => (
-            <div key={f.key} className="flex items-center gap-3">
-              <span className="text-[9px] text-ink/50 w-16 shrink-0">{f.label}</span>
-              <input
-                value={traits[f.key] ?? ""}
-                maxLength={30}
-                placeholder={f.placeholder}
-                onChange={(e) => setTraits((t) => ({ ...t, [f.key]: e.target.value }))}
-                className="flex-1 bg-transparent border border-border px-3 py-2.5 font-sans text-[14px] placeholder:text-ink/30 focus:outline-none focus:border-ink"
-              />
-            </div>
-          ))}
+        {/* ---- Custom amount ---- */}
+        <div className="flex items-center gap-3 mb-8">
+          <span className="text-[11px] text-ink/50 shrink-0">CUSTOM</span>
+          <input
+            type="number"
+            min={1}
+            max={remaining || wallCap}
+            value={customQty}
+            onChange={(e) => onCustomChange(e.target.value)}
+            placeholder="Enter exact amount"
+            className="flex-1 bg-transparent border border-border px-3 py-2.5 font-sans text-[14px] placeholder:text-ink/30 focus:outline-none focus:border-ink"
+          />
         </div>
-      </div>
 
-      {/* ---- Quantity + mint ---- */}
-      <div className="mt-8 flex items-center justify-between text-[11px]">
-        <div className="flex items-center gap-3">
-          <span className="text-ink/50">QUANTITY</span>
-          <div className="flex border border-border">
-            <button className="px-4 py-2.5 hover:bg-ink/5" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
-            <span className="px-5 py-2.5 border-x border-border">{qty}</span>
-            <button className="px-4 py-2.5 hover:bg-ink/5" onClick={() => setQty((q) => Math.min(MAX_PER_WALLET, q + 1))}>+</button>
-          </div>
-        </div>
-        <span className="text-[14px]">{total} ETH</span>
-      </div>
+        {errorMsg && <p className="text-[10px] text-red-800 mb-5">{errorMsg}</p>}
 
-      {previews.length > 0 && (
-        <div className={`mt-6 grid gap-3 ${previews.length > 1 ? "grid-cols-2 md:grid-cols-3" : "grid-cols-1 max-w-xs mx-auto"}`}>
-          {previews.map((p, i) => (
-            <img key={i} src={p} alt={`Agent preview ${i + 1}`} className="w-full border border-border [image-rendering:pixelated]" />
-          ))}
-        </div>
-      )}
-
-      {errorMsg && <p className="mt-5 text-[10px] text-red-800">{errorMsg}</p>}
-
-      <div className="mt-6">
+        {/* ---- Mint action ---- */}
         {!isConnected ? (
-          <div className="[&>*]:w-full"><WalletConnectButton /></div>
-        ) : phase === "previewed" ? (
-          <div className="flex gap-3">
-            <button
-              onClick={() => { setPhase("form"); setPreviews([]); setGenerationIds([]); }}
-              className="px-6 py-4 text-[11px] border border-border hover:border-ink transition-colors"
-            >
-              REGENERATE
-            </button>
-            <button
-              onClick={mint}
-              className="flex-1 py-4 text-[11px] bg-ink text-cream hover:bg-sage transition-colors"
-            >
-              MINT {qty} — {total} ETH
-            </button>
-          </div>
-        ) : phase === "generating" || phase === "authorizing" || phase === "minting" ? (
-          <button disabled className="w-full py-4 text-[11px] bg-ink text-cream opacity-50">
-            {phase === "generating" ? `GENERATING ${qty} AGENT${qty > 1 ? "S" : ""}…`
-              : phase === "authorizing" ? "PREPARING…" : "CONFIRM IN WALLET…"}
+          <div className="[&>*]:w-full mb-4"><WalletConnectButton /></div>
+        ) : phase === "minting" ? (
+          <button disabled className="w-full py-4 text-[11px] bg-ink text-cream opacity-50 mb-4">
+            CONFIRM IN WALLET…
           </button>
         ) : phase === "done" ? (
-          <p className="text-center text-[12px] text-sage py-4">MINTED. WELCOME, HANDLER.</p>
+          <p className="text-center text-[12px] text-sage py-4 mb-4">
+            MINTED {qty}. WELCOME, HANDLER{qty > 1 ? "S" : ""}.
+          </p>
         ) : (
           <button
-            onClick={generate}
-            disabled={!base || !filled}
-            className="w-full py-4 text-[11px] bg-ink text-cream hover:bg-sage transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={mint}
+            disabled={qty < 1 || remaining <= 0}
+            className="w-full py-4 text-[11px] bg-ink text-cream hover:bg-sage transition-colors disabled:opacity-40 disabled:cursor-not-allowed mb-4"
           >
-            GENERATE {qty} AGENT{qty > 1 ? "S" : ""}
+            {remaining <= 0 ? "WALLET LIMIT REACHED" : `MINT ${qty} — ${total} ETH`}
           </button>
         )}
-      </div>
 
-      <p className="mt-6 text-[10px] text-ink/50 leading-relaxed">
-        FULLY PUBLIC MINT. NO PRESALE, NO ALLOWLIST, NO TEAM SUPPLY. WHAT YOU
-        PREVIEW IS WHAT YOU MINT — PERMANENTLY.
-      </p>
-    </main>
+        <p className="text-[10px] text-ink/50 leading-relaxed mb-10">
+          FULLY PUBLIC MINT. IDENTITY REVEALS AFTER MINT CLOSES.
+        </p>
+
+        {/* ---- Links ---- */}
+        <div className="flex gap-4 text-[10px] pt-6 border-t border-ink/15">
+          <a href={EXPLORER_URL} target="_blank" rel="noreferrer" className="text-sage hover:underline">
+            VIEW ON EXPLORER ↗
+          </a>
+          <a href={OPENSEA_URL} target="_blank" rel="noreferrer" className="text-sage hover:underline">
+            VIEW ON OPENSEA ↗
+          </a>
+        </div>
+      </main>
+
+      <LiveMintFeed />
+    </>
   );
 }
