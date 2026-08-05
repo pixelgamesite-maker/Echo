@@ -7,6 +7,8 @@ import { PixelShowcase, usePixelShowcase } from "@/components/PixelShowcase";
 import { EQUIX_ADDRESS, equixAbi } from "@/lib/contract";
 import { activeChain } from "@/lib/wagmiConfig";
 
+const PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+
 const EXPLORER_URL = `${activeChain.blockExplorers?.default.url}/address/${EQUIX_ADDRESS}`;
 const OPENSEA_URL = import.meta.env.VITE_OPENSEA_URL as string | undefined;
 
@@ -121,60 +123,71 @@ export default function MintPage() {
           </div>
         </div>
 
-        {/* ---- Amount stepper ---- */}
-        <p className="text-center text-[11px] mb-5">SELECT AN AMOUNT TO MINT</p>
+        {/* ---- Amount selector ---- */}
+        <p className="text-center text-[11px] mb-6 tracking-wide">
+          SELECT AN AMOUNT TO MINT
+        </p>
 
-        <div className="flex items-stretch justify-center mb-6">
-          <button
-            onClick={() => setQty((q) => clamp(q - 1))}
-            disabled={qty <= 1}
-            aria-label="Decrease"
-            className="w-14 border border-border text-[16px] hover:border-ink hover:bg-ink hover:text-cream transition-colors disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink"
-          >
-            −
-          </button>
-
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={remaining || wallCap}
-            value={qty}
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10);
-              setQty(isNaN(v) ? 1 : clamp(v));
-            }}
-            className="w-28 text-center border-y border-border bg-transparent py-4 text-[18px] font-pixel focus:outline-none focus:border-sage [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          />
-
-          <button
-            onClick={() => setQty((q) => clamp(q + 1))}
-            disabled={qty >= (remaining || wallCap)}
-            aria-label="Increase"
-            className="w-14 border border-border text-[16px] hover:border-ink hover:bg-ink hover:text-cream transition-colors disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink"
-          >
-            +
-          </button>
-        </div>
-
-        <div className="flex justify-center gap-2 mb-10">
-          {[1, 5, 10, 25, remaining || wallCap].map((n, i) => (
+        {/* premium quantity card */}
+        <div className="border border-border mb-6">
+          <div className="flex items-stretch">
             <button
-              key={i}
-              onClick={() => setQty(clamp(n))}
-              className={`px-3 py-1.5 text-[9px] border transition-colors ${
-                qty === n ? "border-sage text-sage" : "border-ink/15 text-ink/50 hover:border-ink/40"
-              }`}
+              onClick={() => setQty((q) => clamp(q - 1))}
+              disabled={qty <= 1}
+              aria-label="Decrease"
+              className="w-16 shrink-0 border-r border-border text-[18px] text-ink/60 hover:bg-ink hover:text-cream hover:border-ink transition-colors disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink/60"
             >
-              {i === 4 ? "MAX" : n}
+              −
             </button>
-          ))}
+
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={remaining || wallCap}
+              value={qty}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                setQty(isNaN(v) ? 1 : clamp(v));
+              }}
+              className="flex-1 min-w-0 text-center bg-transparent py-7 text-[32px] font-pixel leading-none focus:outline-none focus:bg-sage/[0.04] transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+
+            <button
+              onClick={() => setQty((q) => clamp(q + 1))}
+              disabled={qty >= (remaining || wallCap)}
+              aria-label="Increase"
+              className="w-16 shrink-0 border-l border-border text-[18px] text-ink/60 hover:bg-ink hover:text-cream hover:border-ink transition-colors disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink/60"
+            >
+              +
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between px-5 py-4 border-t border-border">
+            <span className="text-[9px] text-ink/40 tracking-wide">TOTAL</span>
+            <span className="text-[15px]">{total} ETH</span>
+          </div>
         </div>
 
-        {/* ---- Total + action ---- */}
-        <div className="text-center mb-6">
-          <p className="text-[9px] text-ink/40 mb-2">TOTAL</p>
-          <p className="text-[22px]">{total} ETH</p>
+        {/* presets */}
+        <div className="grid grid-cols-5 gap-2 mb-10">
+          {PRESETS.map((n) => {
+            const over = n > (remaining || wallCap);
+            return (
+              <button
+                key={n}
+                onClick={() => setQty(clamp(n))}
+                disabled={over}
+                className={`py-3 text-[11px] border transition-colors disabled:opacity-25 disabled:cursor-not-allowed ${
+                  qty === n
+                    ? "border-sage text-sage bg-sage/[0.05]"
+                    : "border-ink/15 text-ink/60 hover:border-ink hover:text-ink"
+                }`}
+              >
+                {n}
+              </button>
+            );
+          })}
         </div>
 
         {errorMsg && (
