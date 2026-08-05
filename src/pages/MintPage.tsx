@@ -7,28 +7,23 @@ import { PixelShowcase, usePixelShowcase } from "@/components/PixelShowcase";
 import { EQUIX_ADDRESS, equixAbi } from "@/lib/contract";
 import { activeChain } from "@/lib/wagmiConfig";
 
-const PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
-
 const EXPLORER_URL = `${activeChain.blockExplorers?.default.url}/address/${EQUIX_ADDRESS}`;
-const OPENSEA_URL =
-  (import.meta.env.VITE_OPENSEA_URL as string | undefined) ??
-  `https://opensea.io/assets/robinhood/${EQUIX_ADDRESS}`;
+const OPENSEA_URL = import.meta.env.VITE_OPENSEA_URL as string | undefined;
 
 type Phase = "idle" | "minting" | "done" | "error";
 
 export default function MintPage() {
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const show = usePixelShowcase();
 
   const [qty, setQty] = useState(1);
-  const [customQty, setCustomQty] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const show = usePixelShowcase();
 
   const { data: totalSupply } = useReadContract({
     address: EQUIX_ADDRESS, abi: equixAbi, functionName: "totalSupply",
-    query: { enabled: !!EQUIX_ADDRESS, refetchInterval: 12_000 },
+    query: { enabled: !!EQUIX_ADDRESS, refetchInterval: 10_000 },
   });
   const { data: maxSupply } = useReadContract({
     address: EQUIX_ADDRESS, abi: equixAbi, functionName: "MAX_SUPPLY",
@@ -45,7 +40,11 @@ export default function MintPage() {
   const { data: mintedByMe } = useReadContract({
     address: EQUIX_ADDRESS, abi: equixAbi, functionName: "mintedPerWallet",
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 10_000 },
+  });
+  const { data: mintingActive } = useReadContract({
+    address: EQUIX_ADDRESS, abi: equixAbi, functionName: "mintingActive",
+    query: { enabled: !!EQUIX_ADDRESS, refetchInterval: 10_000 },
   });
 
   const minted = Number((totalSupply as bigint | undefined) ?? 0n);
@@ -54,153 +53,190 @@ export default function MintPage() {
   const wallCap = Number((maxPerWallet as bigint | undefined) ?? 50n);
   const already = Number((mintedByMe as bigint | undefined) ?? 0n);
   const remaining = Math.max(0, wallCap - already);
+  const isLive = mintingActive === true;
+  const soldOut = minted >= max;
 
-  const pct = ((minted / max) * 100).toFixed(2);
-  const blocks = useMemo(() => {
-    const filled = Math.round((minted / max) * 48);
-    return Array.from({ length: 48 }, (_, i) => i < filled);
-  }, [minted, max]);
-
+  const pctNum = max > 0 ? (minted / max) * 100 : 0;
   const total = (priceEach * qty).toFixed(4);
 
-  function pick(n: number) {
-    setQty(Math.min(n, remaining || n));
-    setCustomQty("");
-  }
-
-  function onCustomChange(v: string) {
-    setCustomQty(v);
-    const n = parseInt(v, 10);
-    if (!isNaN(n) && n > 0) setQty(Math.min(n, remaining || n));
-  }
-
-  async function mint() {
-    if (!address || qty < 1) return;
-    setPhase("minting");
-    setErrorMsg(null);
-    try {
-      await writeContractAsync({
-        address: EQUIX_ADDRESS,
-        abi: equixAbi,
-        functionName: "mint",
-        args: [BigInt(qty)],
-        value: parseEther(total),
-      });
-      setPhase("done");
-    } catch (e: any) {
-      setErrorMsg(e.shortMessage ?? e.message ?? "Mint failed");
-      setPhase("error");
-    }
-  }
+  const clamp = (n: number) => Math.max(1, Math.min(n, remaining || wallCap));
 
   return (
     <>
-      <main className="max-w-2xl mx-auto px-6 py-10 font-pixel">
-        <h1 className="text-[18px] mb-2">EQUIX AI</h1>
-        <p className="text-[11px] text-ink/50 mb-8 font-sans">
-          9,491 animated agent identities on Robinhood Chain.
-        </p>
-
-        {/* ---- Decorative preview: cycles the 20 hand-drawn variants.
-             Purely illustrative now — no longer tied to user prompts. ---- */}
-        <div className="border border-dashed border-border p-8 mb-3">
-          <div className="aspect-square max-w-xs mx-auto">
+      <main className="max-w-xl mx-auto px-6 py-12 font-pixel">
+        {/* ---- Showcase ---- */}
+        <div className="border border-border p-10 mb-4">
+          <div className="aspect-square max-w-[240px] mx-auto">
             <PixelShowcase base={show.base} variantCells={show.variant.cells} subframe={show.subframe} />
           </div>
         </div>
-        <p className="text-center text-[9px] text-ink/40 mb-10">
-          A preview of the collection's style — actual identities reveal after mint closes.
+        <p className="text-center text-[9px] text-ink/40 mb-12 leading-relaxed">
+          STYLE PREVIEW · IDENTITIES REVEAL AFTER MINT CLOSES
         </p>
 
-        {/* ---- Supply ---- */}
-        <div className="mb-8">
-          <div className="flex justify-between text-[12px] mb-3">
-            <span className="font-bold">SUPPLY</span>
-            <span>
-              {minted.toLocaleString()} / {max.toLocaleString()}{" "}
-              <span className="text-ink/40">{pct}%</span>
+        {/* ---- Progress: thin rail with marker + milestone ticks ---- */}
+        <div className="mb-12">
+          <div className="flex justify-between items-baseline mb-4">
+            <span className="text-[11px] text-ink/50">MINTED</span>
+            <span className="text-[15px]">
+              {minted.toLocaleString()}
+              <span className="text-ink/30"> / {max.toLocaleString()}</span>
             </span>
           </div>
-          <div className="flex gap-[3px] h-8">
-            {blocks.map((f, i) => (
-              <div key={i} className={`flex-1 ${f ? "bg-ink" : "bg-ink/15"}`} />
+
+          <div className="relative h-[3px] bg-ink/10 mb-3">
+            <div
+              className="absolute inset-y-0 left-0 bg-sage transition-all duration-700 ease-out"
+              style={{ width: `${pctNum}%` }}
+            />
+            <div
+              className="absolute top-1/2 -translate-y-1/2 w-[3px] h-[13px] bg-ink transition-all duration-700 ease-out"
+              style={{ left: `calc(${pctNum}% - 1px)` }}
+            />
+          </div>
+
+          <div className="flex justify-between text-[8px] text-ink/30">
+            {[0, 25, 50, 75, 100].map((m) => (
+              <span key={m} className={pctNum >= m ? "text-sage" : ""}>{m}%</span>
             ))}
           </div>
         </div>
 
-        {/* ---- Price row ---- */}
-        <div className="grid grid-cols-3 gap-4 text-[11px] mb-8 pb-8 border-b border-ink/15">
-          <div><p className="text-ink/50 mb-2">PRICE</p><p className="text-[14px]">{priceEach} ETH</p></div>
-          <div><p className="text-ink/50 mb-2">MAX / WALLET</p><p className="text-[14px]">{wallCap}</p></div>
-          <div><p className="text-ink/50 mb-2">YOU'VE MINTED</p><p className="text-[14px]">{already}</p></div>
+        {/* ---- Stats ---- */}
+        <div className="grid grid-cols-3 gap-6 text-center mb-12 py-6 border-y border-ink/10">
+          <div>
+            <p className="text-[9px] text-ink/40 mb-2">PRICE</p>
+            <p className="text-[13px]">{priceEach}</p>
+            <p className="text-[9px] text-ink/40 mt-1">ETH</p>
+          </div>
+          <div>
+            <p className="text-[9px] text-ink/40 mb-2">MAX / WALLET</p>
+            <p className="text-[13px]">{wallCap}</p>
+            <p className="text-[9px] text-ink/40 mt-1">AGENTS</p>
+          </div>
+          <div>
+            <p className="text-[9px] text-ink/40 mb-2">YOU OWN</p>
+            <p className="text-[13px]">{already}</p>
+            <p className="text-[9px] text-ink/40 mt-1">MINTED</p>
+          </div>
         </div>
 
-        {/* ---- Quantity presets ---- */}
-        <p className="text-[11px] text-ink/50 mb-3">AMOUNT</p>
-        <div className="grid grid-cols-5 gap-2 mb-4">
-          {PRESETS.map((n) => (
+        {/* ---- Amount stepper ---- */}
+        <p className="text-center text-[11px] mb-5">SELECT AN AMOUNT TO MINT</p>
+
+        <div className="flex items-stretch justify-center mb-6">
+          <button
+            onClick={() => setQty((q) => clamp(q - 1))}
+            disabled={qty <= 1}
+            aria-label="Decrease"
+            className="w-14 border border-border text-[16px] hover:border-ink hover:bg-ink hover:text-cream transition-colors disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink"
+          >
+            −
+          </button>
+
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={remaining || wallCap}
+            value={qty}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              setQty(isNaN(v) ? 1 : clamp(v));
+            }}
+            className="w-28 text-center border-y border-border bg-transparent py-4 text-[18px] font-pixel focus:outline-none focus:border-sage [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+
+          <button
+            onClick={() => setQty((q) => clamp(q + 1))}
+            disabled={qty >= (remaining || wallCap)}
+            aria-label="Increase"
+            className="w-14 border border-border text-[16px] hover:border-ink hover:bg-ink hover:text-cream transition-colors disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink"
+          >
+            +
+          </button>
+        </div>
+
+        <div className="flex justify-center gap-2 mb-10">
+          {[1, 5, 10, 25, remaining || wallCap].map((n, i) => (
             <button
-              key={n}
-              onClick={() => pick(n)}
-              disabled={n > wallCap}
-              className={`text-[12px] py-3 border transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
-                qty === n && !customQty ? "border-sage text-sage" : "border-border text-ink hover:border-ink"
+              key={i}
+              onClick={() => setQty(clamp(n))}
+              className={`px-3 py-1.5 text-[9px] border transition-colors ${
+                qty === n ? "border-sage text-sage" : "border-ink/15 text-ink/50 hover:border-ink/40"
               }`}
             >
-              {n}
+              {i === 4 ? "MAX" : n}
             </button>
           ))}
         </div>
 
-        {/* ---- Custom amount ---- */}
-        <div className="flex items-center gap-3 mb-8">
-          <span className="text-[11px] text-ink/50 shrink-0">CUSTOM</span>
-          <input
-            type="number"
-            min={1}
-            max={remaining || wallCap}
-            value={customQty}
-            onChange={(e) => onCustomChange(e.target.value)}
-            placeholder="Enter exact amount"
-            className="flex-1 bg-transparent border border-border px-3 py-2.5 font-sans text-[14px] placeholder:text-ink/30 focus:outline-none focus:border-ink"
-          />
+        {/* ---- Total + action ---- */}
+        <div className="text-center mb-6">
+          <p className="text-[9px] text-ink/40 mb-2">TOTAL</p>
+          <p className="text-[22px]">{total} ETH</p>
         </div>
 
-        {errorMsg && <p className="text-[10px] text-red-800 mb-5">{errorMsg}</p>}
-
-        {/* ---- Mint action ---- */}
-        {!isConnected ? (
-          <div className="[&>*]:w-full mb-4"><WalletConnectButton /></div>
-        ) : phase === "minting" ? (
-          <button disabled className="w-full py-4 text-[11px] bg-ink text-cream opacity-50 mb-4">
-            CONFIRM IN WALLET…
-          </button>
-        ) : phase === "done" ? (
-          <p className="text-center text-[12px] text-sage py-4 mb-4">
-            MINTED {qty}. WELCOME, HANDLER{qty > 1 ? "S" : ""}.
-          </p>
-        ) : (
-          <button
-            onClick={mint}
-            disabled={qty < 1 || remaining <= 0}
-            className="w-full py-4 text-[11px] bg-ink text-cream hover:bg-sage transition-colors disabled:opacity-40 disabled:cursor-not-allowed mb-4"
-          >
-            {remaining <= 0 ? "WALLET LIMIT REACHED" : `MINT ${qty} — ${total} ETH`}
-          </button>
+        {errorMsg && (
+          <p className="text-center text-[9px] text-red-800 mb-5">{errorMsg}</p>
         )}
 
-        <p className="text-[10px] text-ink/50 leading-relaxed mb-10">
-          FULLY PUBLIC MINT. IDENTITY REVEALS AFTER MINT CLOSES.
+        <div className="flex justify-center mb-4">
+          {!isConnected ? (
+            <WalletConnectButton />
+          ) : phase === "minting" ? (
+            <button disabled className="w-full max-w-xs py-4 text-[11px] bg-ink text-cream opacity-50">
+              CONFIRM IN WALLET…
+            </button>
+          ) : phase === "done" ? (
+            <p className="text-[12px] text-sage py-4">MINTED. WELCOME, HANDLER.</p>
+          ) : (
+            <button
+              onClick={async () => {
+                if (!address) return;
+                setPhase("minting"); setErrorMsg(null);
+                try {
+                  await writeContractAsync({
+                    address: EQUIX_ADDRESS, abi: equixAbi, functionName: "mint",
+                    args: [BigInt(qty)], value: parseEther(total),
+                  });
+                  setPhase("done");
+                } catch (e: any) {
+                  setErrorMsg(e.shortMessage ?? e.message ?? "Mint failed");
+                  setPhase("error");
+                }
+              }}
+              disabled={!isLive || soldOut || remaining <= 0}
+              className="w-full max-w-xs py-4 text-[11px] bg-ink text-cream hover:bg-sage transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {!isLive
+                ? "MINT NOT LIVE YET"
+                : soldOut
+                ? "SOLD OUT"
+                : remaining <= 0
+                ? "WALLET LIMIT REACHED"
+                : `MINT ${qty}`}
+            </button>
+          )}
+        </div>
+
+        <p className="text-center text-[9px] mb-10 leading-relaxed">
+          <span className={isLive ? "text-sage" : "text-ink/40"}>
+            {isLive ? "● MINT LIVE" : "○ MINT NOT OPEN"}
+          </span>
+          <span className="text-ink/40"> · FULLY PUBLIC · NO PRESALE · NO ALLOWLIST</span>
         </p>
 
         {/* ---- Links ---- */}
-        <div className="flex gap-4 text-[10px] pt-6 border-t border-ink/15">
-          <a href={EXPLORER_URL} target="_blank" rel="noreferrer" className="text-sage hover:underline">
-            VIEW ON EXPLORER ↗
+        <div className="flex justify-center gap-6 text-[9px] pt-6 border-t border-ink/10">
+          <a href={EXPLORER_URL} target="_blank" rel="noreferrer" className="text-ink/50 hover:text-sage transition-colors">
+            EXPLORER ↗
           </a>
-          <a href={OPENSEA_URL} target="_blank" rel="noreferrer" className="text-sage hover:underline">
-            VIEW ON OPENSEA ↗
-          </a>
+          {OPENSEA_URL && (
+            <a href={OPENSEA_URL} target="_blank" rel="noreferrer" className="text-ink/50 hover:text-sage transition-colors">
+              OPENSEA ↗
+            </a>
+          )}
         </div>
       </main>
 
