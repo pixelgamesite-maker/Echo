@@ -1,16 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAccount, useReadContract } from "wagmi";
-import { getLogs, readContract } from "wagmi/actions";
+import { getPublicClient, readContract } from "wagmi/actions";
+import type { Log } from "viem";
 import { Button } from "@/components/ui/Button";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
-import { EQUIX_ADDRESS, equixAbi, resolveIpfs } from "@/lib/contract";
+import { EQUIX_ADDRESS, equixAbi } from "@/lib/contract";
 import { wagmiConfig } from "@/lib/wagmiConfig";
-
-const ZERO = "0x0000000000000000000000000000000000000000";
 
 type Metadata = { name?: string; image?: string; attributes?: { trait_type: string; value: string }[] };
 type AgentCard = { tokenId: bigint; meta: Metadata | null; loading: boolean };
+
+const TRANSFER_EVENT = {
+  type: "event",
+  name: "Transfer",
+  inputs: [
+    { indexed: true, name: "from", type: "address" },
+    { indexed: true, name: "to", type: "address" },
+    { indexed: true, name: "tokenId", type: "uint256" },
+  ],
+} as const;
 
 export default function MyAgentsPage() {
   const { address, isConnected } = useAccount();
@@ -33,27 +42,26 @@ export default function MyAgentsPage() {
         // This contract has no tokensOfOwner() — reconstruct ownership by
         // scanning Transfer logs sent to this wallet, then confirming
         // current ownership per token (in case any were resold since).
-        const logs = await getLogs(wagmiConfig, {
+        const client = getPublicClient(wagmiConfig);
+        if (!client) throw new Error("No RPC client available");
+
+        const logs = await client.getLogs({
           address: EQUIX_ADDRESS,
-          event: {
-            type: "event",
-            name: "Transfer",
-            inputs: [
-              { indexed: true, name: "from", type: "address" },
-              { indexed: true, name: "to", type: "address" },
-              { indexed: true, name: "tokenId", type: "uint256" },
-            ],
-          },
+          event: TRANSFER_EVENT,
           args: { to: address },
           fromBlock: 0n,
           toBlock: "latest",
         });
 
-        const candidateIds = [...new Set(logs.map((l) => (l.args as any).tokenId as bigint))];
+        const candidateIds = [
+          ...new Set(
+            logs.map((l: Log) => (l as any).args.tokenId as bigint)
+          ),
+        ];
 
         const owned: bigint[] = [];
         await Promise.all(
-          candidateIds.map(async (id) => {
+          candidateIds.map(async (id: bigint) => {
             try {
               const currentOwner = (await readContract(wagmiConfig, {
                 address: EQUIX_ADDRESS,
@@ -79,7 +87,10 @@ export default function MyAgentsPage() {
               functionName: "tokenURI",
               args: [tokenId],
             })) as string;
-            const meta: Metadata = await fetch(resolveIpfs(uri)).then((r) => r.json());
+            const gateway = uri.startsWith("ipfs://")
+              ? "https://gateway.pinata.cloud/ipfs/" + uri.slice(7)
+              : uri;
+            const meta: Metadata = await fetch(gateway).then((r) => r.json());
             setCards((prev) =>
               prev.map((c) => (c.tokenId === tokenId ? { ...c, meta, loading: false } : c))
             );
@@ -94,6 +105,11 @@ export default function MyAgentsPage() {
       }
     })();
   }, [address]);
+
+  function resolveImg(uri?: string) {
+    if (!uri) return "";
+    return uri.startsWith("ipfs://") ? "https://gateway.pinata.cloud/ipfs/" + uri.slice(7) : uri;
+  }
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-14 font-pixel">
@@ -136,7 +152,7 @@ export default function MyAgentsPage() {
                 <span className="w-2 h-2 bg-sage animate-pulse" />
               ) : c.meta?.image ? (
                 <img
-                  src={resolveIpfs(c.meta.image)}
+                  src={resolveImg(c.meta.image)}
                   alt={c.meta.name ?? `Agent #${c.tokenId}`}
                   className="w-full h-full object-contain [image-rendering:pixelated]"
                 />
