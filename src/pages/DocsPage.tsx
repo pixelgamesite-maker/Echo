@@ -1,53 +1,101 @@
 import { Card } from "@/components/ui/Card";
+import { EQUIX_ADDRESS } from "@/lib/contract";
 
-const SECTIONS = [
+const LIVE = [
   {
-    title: "What is Echo?",
-    body: "Echo is a prompt-to-mint collection on Robinhood Chain. You pick a base, describe five traits in your own words, and the Echo engine generates a unique pixel agent. What you preview is exactly what you mint — the image and its metadata are pinned to IPFS and locked to your token forever.",
+    title: "What is Equix?",
+    body: "Equix is a collection of 9,491 animated pixel agent identities on Robinhood Chain. Each agent is a one-of-one character rendered in a fixed three-colour palette. The artwork gives every agent a face; what it becomes from there is up to its handler.",
   },
   {
-    title: "Bases",
-    body: "Every agent starts from one of four fixed bases: Male, Female, Robot, or Pet. The base sets the silhouette and proportions. Your trait prompts never change the base shape — they style what sits on top of it.",
+    title: "The mint",
+    body: "Fully public. 0.0004 ETH per agent, maximum 50 per wallet. No presale, no allowlist, no whitelist phases. Choose your quantity, confirm one transaction, and your agents land directly in your wallet.",
   },
   {
-    title: "Traits",
-    body: "Five freeform fields: Hair, Eyes (mood), Mouth, Cloth, and Accessories. Up to 30 characters each, plain words only. Your exact words are written into the token's metadata as attributes, so marketplaces can filter and rank them.",
+    title: "Reveal",
+    body: "Agents mint with placeholder art and reveal after the mint closes. Until then, every token shows the same holding image. Once reveal runs, each token's metadata points to its own unique artwork — permanently.",
   },
   {
-    title: "The palette",
-    body: "Every agent is exactly three colors: cream background, ink base, sage details. The generation pipeline enforces this on every mint — no gradients, no color drift, no off-style agents. The details rendered in sage are the parts you prompted.",
+    title: "The art",
+    body: "Every agent is exactly three colours: cream background, ink silhouette, sage detail. Four base types — male, female, robot and pet — each with distinct variants. The palette is enforced across the entire collection, so no agent ever drifts off-style.",
   },
   {
-    title: "Minting",
-    body: "Previews are free and rate-limited per wallet. When you mint, the backend pins your agent to IPFS and signs it; the contract only accepts backend-signed metadata, so nobody can mint arbitrary images into the collection. Mint price is 0.002 ETH on Robinhood Chain.",
+    title: "Ownership",
+    body: "Your agents appear on the My Agents page, read directly from the contract. Each links to Robinhood Chain's block explorer, and artwork lives on IPFS — independent of this website. Agents are freely tradable on OpenSea.",
   },
   {
-    title: "Supply and fairness",
-    body: "5,555 agents. Max 10 per wallet. Supply can be reduced by the team but never increased — that rule is enforced by the contract itself. Every signature is single-use, and every preview expires after 15 minutes.",
+    title: "Contract",
+    body: `Deployed on Robinhood Chain at ${EQUIX_ADDRESS}. Supply, price, wallet limit and mint status are all readable on-chain — every number shown on this site is pulled live from the contract, not hardcoded.`,
+  },
+];
+
+const ROADMAP = [
+  {
+    title: "Intent",
+    body: "Handlers will be able to assign their agent an objective — what it should focus on and what outcome it works toward. An agent with a purpose behaves differently from a generic assistant.",
   },
   {
-    title: "Verifying your agent",
-    body: "Each agent links to Robinhood Chain's block explorer from your My Agents page. Metadata and images live on IPFS, independent of this website.",
+    title: "Context and training",
+    body: "Over time, handlers will be able to give agents sources, examples, preferences and feedback. A trained agent and a fresh agent will not be the same thing — usefulness will be built through repeated use.",
+  },
+  {
+    title: "Permissions",
+    body: "Agents will begin in inform-only mode: able to monitor, research and report, but not to transact. Any expansion of access will be explicit and controlled by the handler. Owning an agent will never grant it unrestricted wallet access.",
+  },
+  {
+    title: "Agent classes",
+    body: "Scout, research, trading, minting, dev/ops, or something shaped entirely around a handler's own workflow. Classes will be starting directions, not permanent restrictions.",
+  },
+  {
+    title: "The Corner Shop",
+    body: "A dedicated secondary market for trained agents, where what's sold is the identity plus the transferable profile its owner approves. Private strategies and credentials will never transfer automatically with the token.",
   },
 ];
 
 export default function DocsPage() {
   return (
     <main className="max-w-3xl mx-auto px-6 py-14">
-      <h1 className="font-pixel text-xl mb-3">Docs</h1>
-      <p className="text-ink/70 mb-12">Everything you need to know before minting.</p>
+      <h1 className="font-pixel text-xl mb-3">DOCS</h1>
+      <p className="text-ink/60 mb-14 text-[15px]">
+        Everything you need to know before minting.
+      </p>
 
-      <div className="flex flex-col gap-6">
-        {SECTIONS.map((s) => (
+      <div className="flex items-center gap-3 mb-6">
+        <span className="w-1.5 h-1.5 bg-sage" />
+        <h2 className="font-pixel text-[11px] text-sage">LIVE NOW</h2>
+      </div>
+
+      <div className="flex flex-col gap-5 mb-16">
+        {LIVE.map((s) => (
           <Card key={s.title} className="p-6 md:p-8">
-            <h2 className="font-pixel text-[12px] mb-4">{s.title}</h2>
-            <p className="text-[15px] leading-relaxed text-ink/80">{s.body}</p>
+            <h3 className="font-pixel text-[12px] mb-4">{s.title}</h3>
+            <p className="text-[15px] leading-relaxed text-ink/80 break-words">
+              {s.body}
+            </p>
           </Card>
         ))}
       </div>
 
-      <p className="font-pixel text-[9px] text-ink/40 mt-12 leading-loose">
-        Contract address and audit links will be published here before mint opens.
+      <div className="flex items-center gap-3 mb-3">
+        <span className="w-1.5 h-1.5 border border-ink/30" />
+        <h2 className="font-pixel text-[11px] text-ink/50">ROADMAP</h2>
+      </div>
+      <p className="text-[13px] text-ink/50 mb-6 leading-relaxed">
+        The following describes where Equix is going. None of it is live at
+        mint — it is direction, not a shipped feature. No fixed dates.
+      </p>
+
+      <div className="flex flex-col gap-5">
+        {ROADMAP.map((s) => (
+          <Card key={s.title} className="p-6 md:p-8 border-dashed">
+            <h3 className="font-pixel text-[12px] mb-4 text-ink/70">{s.title}</h3>
+            <p className="text-[15px] leading-relaxed text-ink/70">{s.body}</p>
+          </Card>
+        ))}
+      </div>
+
+      <p className="font-pixel text-[9px] text-ink/40 mt-14 leading-loose">
+        NFTS ARE HIGH RISK AND VALUES CAN GO TO ZERO. NOTHING HERE IS
+        FINANCIAL ADVICE. ONLY SPEND WHAT YOU CAN AFFORD TO LOSE.
       </p>
     </main>
   );
