@@ -10,7 +10,9 @@ import { activeChain } from "@/lib/wagmiConfig";
 const PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
 
 const EXPLORER_URL = `${activeChain.blockExplorers?.default.url}/address/${EQUIX_ADDRESS}`;
-const OPENSEA_URL = import.meta.env.VITE_OPENSEA_URL as string | undefined;
+const OPENSEA_URL =
+  (import.meta.env.VITE_OPENSEA_URL as string | undefined) ??
+  "https://opensea.io/collection/equix-ai";
 
 type Phase = "idle" | "minting" | "done" | "error";
 
@@ -20,6 +22,7 @@ export default function MintPage() {
   const show = usePixelShowcase();
 
   const [qty, setQty] = useState(1);
+  const [qtyRaw, setQtyRaw] = useState("1");
   const [phase, setPhase] = useState<Phase>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -62,6 +65,11 @@ export default function MintPage() {
   const total = (priceEach * qty).toFixed(4);
 
   const clamp = (n: number) => Math.max(1, Math.min(n, remaining || wallCap));
+  const setBoth = (n: number) => {
+    const c = clamp(n);
+    setQty(c);
+    setQtyRaw(String(c));
+  };
 
   return (
     <>
@@ -132,7 +140,7 @@ export default function MintPage() {
         <div className="border border-border mb-6">
           <div className="flex items-stretch">
             <button
-              onClick={() => setQty((q) => clamp(q - 1))}
+              onClick={() => setBoth(qty - 1)}
               disabled={qty <= 1}
               aria-label="Decrease"
               className="w-16 shrink-0 border-r border-border text-[18px] text-ink/60 hover:bg-ink hover:text-cream hover:border-ink transition-colors disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink/60"
@@ -141,20 +149,23 @@ export default function MintPage() {
             </button>
 
             <input
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={1}
-              max={remaining || wallCap}
-              value={qty}
+              value={qtyRaw}
               onChange={(e) => {
-                const v = parseInt(e.target.value, 10);
-                setQty(isNaN(v) ? 1 : clamp(v));
+                const raw = e.target.value;
+                if (!/^\d*$/.test(raw)) return;   // digits only, empty allowed
+                setQtyRaw(raw);
+                const n = parseInt(raw, 10);
+                if (!isNaN(n) && n >= 1) setQty(clamp(n));
               }}
+              onBlur={() => setBoth(parseInt(qtyRaw, 10) || 1)}
+              onFocus={(e) => e.currentTarget.select()}
               className="flex-1 min-w-0 text-center bg-transparent py-7 text-[32px] font-pixel leading-none focus:outline-none focus:bg-sage/[0.04] transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
 
             <button
-              onClick={() => setQty((q) => clamp(q + 1))}
+              onClick={() => setBoth(qty + 1)}
               disabled={qty >= (remaining || wallCap)}
               aria-label="Increase"
               className="w-16 shrink-0 border-l border-border text-[18px] text-ink/60 hover:bg-ink hover:text-cream hover:border-ink transition-colors disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink/60"
@@ -176,7 +187,7 @@ export default function MintPage() {
             return (
               <button
                 key={n}
-                onClick={() => setQty(clamp(n))}
+                onClick={() => setBoth(n)}
                 disabled={over}
                 className={`py-3 text-[11px] border transition-colors disabled:opacity-25 disabled:cursor-not-allowed ${
                   qty === n
@@ -245,11 +256,9 @@ export default function MintPage() {
           <a href={EXPLORER_URL} target="_blank" rel="noreferrer" className="text-ink/50 hover:text-sage transition-colors">
             EXPLORER ↗
           </a>
-          {OPENSEA_URL && (
-            <a href={OPENSEA_URL} target="_blank" rel="noreferrer" className="text-ink/50 hover:text-sage transition-colors">
-              OPENSEA ↗
-            </a>
-          )}
+          <a href={OPENSEA_URL} target="_blank" rel="noreferrer" className="text-ink/50 hover:text-sage transition-colors">
+            OPENSEA ↗
+          </a>
         </div>
       </main>
 
