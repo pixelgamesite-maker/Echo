@@ -111,6 +111,7 @@ export function RevealConsole({
   }
 
   const busy = phase === "signing" || phase === "generating" || phase === "confirming";
+  const confirmLabel = phase === "confirming" ? "Confirming…" : "Confirm forever";
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/40 flex items-start md:items-center justify-center overflow-y-auto p-4">
@@ -159,7 +160,7 @@ export function RevealConsole({
                   Regenerate
                 </Button>
                 <Button variant="primary" className="flex-1" onClick={confirm} disabled={busy}>
-                  {phase === "confirming" ? "Confirming…" : "Confirm forever"}
+                  {confirmLabel}
                 </Button>
               </div>
             </>
@@ -258,4 +259,3 @@ export function RevealConsole({
     </div>
   );
 }
-                  
