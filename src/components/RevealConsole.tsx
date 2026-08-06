@@ -153,7 +153,7 @@ export function RevealConsole({
               </div>
               <p className="text-[11px] text-ink/50 mb-5 leading-relaxed">
                 Confirming locks this agent permanently. You can regenerate as
-                many times as you like before confirming — never after.
+                many times as you like before confirming, never after.
               </p>
               <div className="flex gap-3">
                 <Button variant="secondary" onClick={() => setPhase("form")} disabled={busy}>
