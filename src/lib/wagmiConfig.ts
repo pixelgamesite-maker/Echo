@@ -28,7 +28,7 @@ export const wagmiConfig = createConfig({
             metadata: {
               name: "Equix AI",
               description: "9,491 animated agent identities on Robinhood Chain.",
-              url: "https://equix.ai",
+              url: "https://equixai.xyz",
               icons: [],
             },
           }),
