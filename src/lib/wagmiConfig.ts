@@ -19,6 +19,11 @@ const wcProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | un
 
 export const wagmiConfig = createConfig({
   chains: [robinhoodChain],
+  // Note: we deliberately do NOT hardcode a single injected() target.
+  // wagmi v2 auto-discovers every EIP-6963-announcing wallet (MetaMask,
+  // Rabby, Zerion, Coinbase Wallet, etc.) and adds each as its own entry
+  // in useConnect().connectors automatically. injected() below is just
+  // the generic fallback for wallets that don't support EIP-6963 yet.
   connectors: [
     injected(),
     ...(wcProjectId
@@ -29,7 +34,7 @@ export const wagmiConfig = createConfig({
               name: "Equix AI",
               description: "9,491 animated agent identities on Robinhood Chain.",
               url: "https://equixai.xyz",
-              icons: [],
+              icons: ["https://equixai.xyz/favicon.png"],
             },
           }),
         ]
