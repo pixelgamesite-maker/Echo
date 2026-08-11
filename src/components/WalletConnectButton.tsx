@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { Button } from "./ui/Button";
 
-/** Maps wagmi's internal errors to something a human can act on. */
 function friendlyError(err: unknown): string {
   const raw = (err as any)?.name ?? "";
   const msg = String((err as any)?.message ?? "");
@@ -10,7 +9,7 @@ function friendlyError(err: unknown): string {
   if (raw === "ProviderNotFoundError" || /provider not found/i.test(msg)) {
     return "No wallet detected in this browser";
   }
-  if (raw === "UserRejectedRequestError" || /rejected|denied/i.test(msg)) {
+  if (raw === "UserRejectedRequestError" || /rejected|denied|cancelled/i.test(msg)) {
     return "Connection cancelled";
   }
   if (/already pending|request of type/i.test(msg)) {
@@ -19,21 +18,24 @@ function friendlyError(err: unknown): string {
   if (/chain|network/i.test(msg)) {
     return "Wrong network — switch to Robinhood Chain";
   }
-  // Never surface raw wagmi/viem internals (they include version strings)
   return "Couldn't connect. Please try again";
 }
 
 export function WalletConnectButton() {
   const { address, isConnected } = useAccount();
-  const { connect, connectors, isPending } = useConnect();
+  const { connect, connectors, isPending, pendingConnector } = useConnect();
   const { disconnect } = useDisconnect();
 
-  const [hasInjected, setHasInjected] = useState(false);
+  const [open, setOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Close the picker on outside click / escape
   useEffect(() => {
-    setHasInjected(typeof window !== "undefined" && !!(window as any).ethereum);
-  }, []);
+    if (!open) return;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   if (isConnected && address) {
     return (
@@ -48,53 +50,75 @@ export function WalletConnectButton() {
     );
   }
 
-  const injectedConnector = connectors.find((c) => c.type === "injected");
-  const wcConnector = connectors.find((c) => c.type === "walletConnect");
-
-  // Prefer a real injected wallet; otherwise WalletConnect (QR / deep link).
-  const target = hasInjected ? injectedConnector ?? wcConnector : wcConnector;
-
-  // Last resort: no injected wallet and no WalletConnect configured.
-  // Send mobile users into their wallet's in-app browser.
-  if (!target) {
-    const host = typeof window !== "undefined" ? window.location.host + window.location.pathname : "";
-    const deepLink = `https://metamask.app.link/dapp/${host}`;
-
-    return (
-      <div className="flex flex-col items-center gap-2">
-        <a href={deepLink} target="_blank" rel="noreferrer">
-          <Button variant="secondary" className="text-[10px] px-4 py-2.5">
-            Open in wallet
-          </Button>
-        </a>
-        <span className="font-pixel text-[8px] text-ink/40 text-center max-w-[200px] leading-relaxed">
-          No wallet found in this browser
-        </span>
-      </div>
-    );
-  }
+  // De-dupe: wagmi lists a "injected" fallback plus one entry per
+  // EIP-6963-announced wallet. If a named wallet is already present,
+  // drop the generic fallback so it isn't shown twice.
+  const named = connectors.filter((c) => c.type !== "injected" || c.id !== "injected");
+  const hasNamed = named.some((c) => c.type === "injected");
+  const list = hasNamed ? connectors.filter((c) => c.id !== "injected") : connectors;
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="relative inline-block">
       <Button
         variant="secondary"
         className="text-[10px] px-4 py-2.5"
+        onClick={() => setOpen((o) => !o)}
         disabled={isPending}
-        onClick={() => {
-          setErrorMsg(null);
-          connect(
-            { connector: target },
-            { onError: (e) => setErrorMsg(friendlyError(e)) }
-          );
-        }}
       >
         {isPending ? "Connecting…" : "Connect wallet"}
       </Button>
 
-      {errorMsg && (
-        <span className="font-pixel text-[8px] text-ink/50 text-center max-w-[220px] leading-relaxed">
+      {errorMsg && !open && (
+        <p className="font-pixel text-[8px] text-ink/50 text-center mt-2 max-w-[220px] leading-relaxed">
           {errorMsg}
-        </span>
+        </p>
+      )}
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-2 w-64 bg-cream border border-border z-50 shadow-sm">
+            <div className="px-4 py-3 border-b border-border">
+              <span className="font-pixel text-[9px] text-ink/50">CHOOSE A WALLET</span>
+            </div>
+
+            {list.length === 0 && (
+              <p className="px-4 py-4 text-[11px] text-ink/50 font-sans">
+                No wallets detected.
+              </p>
+            )}
+
+            <ul>
+              {list.map((connector) => (
+                <li key={connector.uid}>
+                  <button
+                    onClick={() => {
+                      setErrorMsg(null);
+                      setOpen(false);
+                      connect(
+                        { connector },
+                        { onError: (e) => setErrorMsg(friendlyError(e)) }
+                      );
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-ink/5 transition-colors border-b border-border last:border-b-0"
+                  >
+                    {connector.icon ? (
+                      <img src={connector.icon} alt="" className="w-5 h-5 shrink-0" />
+                    ) : (
+                      <span className="w-5 h-5 shrink-0 border border-ink/20" />
+                    )}
+                    <span className="text-[13px] font-sans">
+                      {connector.name}
+                    </span>
+                    {isPending && pendingConnector?.uid === connector.uid && (
+                      <span className="ml-auto text-[9px] text-sage font-pixel">…</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
       )}
     </div>
   );
