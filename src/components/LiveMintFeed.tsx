@@ -1,80 +1,83 @@
 import { useEffect, useRef, useState } from "react";
-import { getPublicClient } from "wagmi/actions";
+import { readContract } from "wagmi/actions";
 import { wagmiConfig } from "@/lib/wagmiConfig";
-import { EQUIX_ADDRESS } from "@/lib/contract";
+import { EQUIX_ADDRESS, equixAbi } from "@/lib/contract";
 
-const ZERO = "0x0000000000000000000000000000000000000000";
-const HISTORY_BLOCKS = 5000n;
 const POLL_MS = 8000;
+const BACKFILL_MAX = 12; // how many recent tokens to show on first load
 
 type MintRow = { tokenId: bigint; to: string; at: number };
 
-const TRANSFER_EVENT = {
-  type: "event",
-  name: "Transfer",
-  inputs: [
-    { indexed: true, name: "from", type: "address" },
-    { indexed: true, name: "to", type: "address" },
-    { indexed: true, name: "tokenId", type: "uint256" },
-  ],
-} as const;
-
 /**
- * Plain polling instead of watchContractEvent — some RPC providers don't
- * support persistent filters over HTTP and fail silently, which is more
- * common than it should be. Repeated getLogs works everywhere.
+ * This contract is ERC721A — token IDs mint sequentially. That means we
+ * can reconstruct "what just minted" purely from totalSupply() + ownerOf(),
+ * both plain eth_call requests. No getLogs, no getBlockNumber — those two
+ * methods are currently returning 400 on this RPC/network combo (likely
+ * incomplete method support for a very new chain), while eth_call works
+ * fine, confirmed by the mint page's supply/price numbers loading correctly.
  */
 export function LiveMintFeed() {
   const [rows, setRows] = useState<MintRow[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const lastBlock = useRef<bigint | null>(null);
-  const seen = useRef<Set<string>>(new Set());
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  const lastSupply = useRef<bigint | null>(null);
 
   useEffect(() => {
     if (!EQUIX_ADDRESS) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
+    async function lookupOwners(ids: bigint[]): Promise<MintRow[]> {
+      const results = await Promise.all(
+        ids.map(async (tokenId) => {
+          try {
+            const owner = (await readContract(wagmiConfig, {
+              address: EQUIX_ADDRESS,
+              abi: equixAbi,
+              functionName: "ownerOf",
+              args: [tokenId],
+            })) as string;
+            return { tokenId, to: owner, at: Date.now() };
+          } catch {
+            return null;
+          }
+        })
+      );
+      return results.filter((r): r is MintRow => r !== null);
+    }
+
     async function poll() {
       try {
-        const client = getPublicClient(wagmiConfig);
-        if (!client) throw new Error("no RPC client");
+        const supply = (await readContract(wagmiConfig, {
+          address: EQUIX_ADDRESS,
+          abi: equixAbi,
+          functionName: "totalSupply",
+        })) as bigint;
 
-        const latest = await client.getBlockNumber();
-        const fromBlock =
-          lastBlock.current !== null
-            ? lastBlock.current + 1n
-            : latest > HISTORY_BLOCKS
-            ? latest - HISTORY_BLOCKS
-            : 0n;
-
-        if (fromBlock <= latest) {
-          const logs = await client.getLogs({
-            address: EQUIX_ADDRESS,
-            event: TRANSFER_EVENT,
-            args: { from: ZERO as `0x${string}` },
-            fromBlock,
-            toBlock: latest,
-          });
-
-          const fresh = logs
-            .map((l) => ({
-              tokenId: (l.args as any).tokenId as bigint,
-              to: (l.args as any).to as string,
-              at: Date.now(),
-            }))
-            .filter((m) => !seen.current.has(m.tokenId.toString()));
-
-          if (fresh.length && !cancelled) {
-            fresh.forEach((m) => seen.current.add(m.tokenId.toString()));
+        if (lastSupply.current === null) {
+          // first load — backfill the most recent handful so the feed
+          // isn't empty, without assuming a specific starting token id
+          const start = supply > BigInt(BACKFILL_MAX) ? supply - BigInt(BACKFILL_MAX) : 0n;
+          const ids: bigint[] = [];
+          for (let i = start; i < supply; i++) ids.push(i);
+          const backfilled = await lookupOwners(ids);
+          if (!cancelled) setRows(backfilled.reverse());
+        } else if (supply > lastSupply.current) {
+          const ids: bigint[] = [];
+          for (let i = lastSupply.current; i < supply; i++) ids.push(i);
+          const fresh = await lookupOwners(ids);
+          if (!cancelled && fresh.length) {
             setRows((prev) => [...fresh.reverse(), ...prev].slice(0, 30));
           }
         }
 
-        lastBlock.current = latest;
-        if (!cancelled) setStatus("ready");
-      } catch {
-        if (!cancelled) setStatus((s) => (s === "loading" ? "error" : s));
+        lastSupply.current = supply;
+        if (!cancelled) { setStatus("ready"); setErrorDetail(null); }
+      } catch (e: any) {
+        if (!cancelled) {
+          setStatus("error");
+          setErrorDetail(String(e?.shortMessage ?? e?.message ?? "unknown error").slice(0, 140));
+        }
       } finally {
         if (!cancelled) timer = setTimeout(poll, POLL_MS);
       }
@@ -106,9 +109,12 @@ export function LiveMintFeed() {
       {status === "loading" ? (
         <p className="text-[11px] text-sage">loading recent mints…</p>
       ) : status === "error" ? (
-        <p className="text-[11px] text-ink/40">
-          couldn't reach the chain — retrying…
-        </p>
+        <div className="text-[11px] text-ink/40">
+          <p>couldn't reach the chain — retrying…</p>
+          {errorDetail && (
+            <p className="text-[9px] text-ink/30 mt-2 font-sans break-words">{errorDetail}</p>
+          )}
+        </div>
       ) : rows.length === 0 ? (
         <p className="text-[11px] text-ink/40">watching for mints…</p>
       ) : (
