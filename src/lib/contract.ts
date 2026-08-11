@@ -1,6 +1,6 @@
 // Equix AI — blind-mint contract bindings.
 export const EQUIX_ADDRESS = (import.meta.env.VITE_EQUIX_ADDRESS ??
-  "0x017f15826dff92e2e336ba190ad41ddc5d281648") as `0x${string}`;
+  "0x78E965641DAD0d759290120236aB8D979217e3EF") as `0x${string}`;
 
 export const equixAbi = [
   // ---- mint ----
@@ -37,6 +37,10 @@ export const equixAbi = [
   { type: "function", name: "placeholderURI", stateMutability: "view",
     inputs: [], outputs: [{ type: "string" }] },
 
+  // ---- trading pause (new in this deployment) ----
+  { type: "function", name: "tradingPaused", stateMutability: "view",
+    inputs: [], outputs: [{ type: "bool" }] },
+
   // ---- events ----
   { type: "event", name: "Transfer", anonymous: false, inputs: [
       { indexed: true, name: "from", type: "address" },
@@ -47,6 +51,8 @@ export const equixAbi = [
       { indexed: false, name: "quantity", type: "uint256" }] },
   { type: "event", name: "MintingActiveUpdated", anonymous: false, inputs: [
       { indexed: false, name: "active", type: "bool" }] },
+  { type: "event", name: "TradingPausedUpdated", anonymous: false, inputs: [
+      { indexed: false, name: "paused", type: "bool" }] },
 ] as const;
 
 export const IPFS_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
