@@ -110,7 +110,7 @@ export function WalletConnectButton() {
                     <span className="text-[13px] font-sans">
                       {connector.name}
                     </span>
-                    {isPending && variables?.connector?.uid === connector.uid && (
+                    {isPending && variables?.connector === connector && (
                       <span className="ml-auto text-[9px] text-sage font-pixel">…</span>
                     )}
                   </button>
