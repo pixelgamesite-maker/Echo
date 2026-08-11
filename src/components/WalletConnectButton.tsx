@@ -23,7 +23,7 @@ function friendlyError(err: unknown): string {
 
 export function WalletConnectButton() {
   const { address, isConnected } = useAccount();
-  const { connect, connectors, isPending, pendingConnector } = useConnect();
+  const { connect, connectors, isPending, variables } = useConnect();
   const { disconnect } = useDisconnect();
 
   const [open, setOpen] = useState(false);
@@ -110,7 +110,7 @@ export function WalletConnectButton() {
                     <span className="text-[13px] font-sans">
                       {connector.name}
                     </span>
-                    {isPending && pendingConnector?.uid === connector.uid && (
+                    {isPending && variables?.connector?.uid === connector.uid && (
                       <span className="ml-auto text-[9px] text-sage font-pixel">…</span>
                     )}
                   </button>
