@@ -3,6 +3,7 @@ import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { parseEther, formatEther } from "viem";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { LiveMintFeed } from "@/components/LiveMintFeed";
+import { NetworkGuard, useIsCorrectChain } from "@/components/NetworkGuard";
 import { PixelShowcase, usePixelShowcase } from "@/components/PixelShowcase";
 import { EQUIX_ADDRESS, equixAbi } from "@/lib/contract";
 import { activeChain } from "@/lib/wagmiConfig";
@@ -20,12 +21,14 @@ export default function MintPage() {
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const show = usePixelShowcase();
+  const isCorrectChain = useIsCorrectChain();
 
   const [qty, setQty] = useState(1);
   const [qtyRaw, setQtyRaw] = useState("1");
   const [phase, setPhase] = useState<Phase>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // ---- reads ----
   const { data: totalSupply } = useReadContract({
     address: EQUIX_ADDRESS, abi: equixAbi, functionName: "totalSupply",
     query: { enabled: !!EQUIX_ADDRESS, refetchInterval: 10_000 },
@@ -52,6 +55,7 @@ export default function MintPage() {
     query: { enabled: !!EQUIX_ADDRESS, refetchInterval: 10_000 },
   });
 
+  // ---- derived ----
   const minted = Number((totalSupply as bigint | undefined) ?? 0n);
   const max = Number((maxSupply as bigint | undefined) ?? 9491n);
   const priceEach = mintPrice ? Number(formatEther(mintPrice as bigint)) : 0.0004;
@@ -71,10 +75,29 @@ export default function MintPage() {
     setQtyRaw(String(c));
   };
 
+  async function mint() {
+    if (!address || qty < 1) return;
+    setPhase("minting");
+    setErrorMsg(null);
+    try {
+      await writeContractAsync({
+        address: EQUIX_ADDRESS,
+        abi: equixAbi,
+        functionName: "mint",
+        args: [BigInt(qty)],
+        value: parseEther(total),
+      });
+      setPhase("done");
+    } catch (e: any) {
+      setErrorMsg(e.shortMessage ?? e.message ?? "Mint failed");
+      setPhase("error");
+    }
+  }
+
   return (
     <>
       <main className="max-w-xl mx-auto px-6 py-12 font-pixel">
-        {/* ---- Showcase ---- */}
+        {/* ---- decorative showcase ---- */}
         <div className="border border-border p-10 mb-4">
           <div className="aspect-square max-w-[240px] mx-auto">
             <PixelShowcase base={show.base} variantCells={show.variant.cells} subframe={show.subframe} />
@@ -84,7 +107,7 @@ export default function MintPage() {
           STYLE PREVIEW · IDENTITIES REVEAL AFTER MINT CLOSES
         </p>
 
-        {/* ---- Progress: thin rail with marker + milestone ticks ---- */}
+        {/* ---- progress rail ---- */}
         <div className="mb-12">
           <div className="flex justify-between items-baseline mb-4">
             <span className="text-[11px] text-ink/50">MINTED</span>
@@ -112,7 +135,7 @@ export default function MintPage() {
           </div>
         </div>
 
-        {/* ---- Stats ---- */}
+        {/* ---- stats ---- */}
         <div className="grid grid-cols-3 gap-6 text-center mb-12 py-6 border-y border-ink/10">
           <div>
             <p className="text-[9px] text-ink/40 mb-2">PRICE</p>
@@ -131,12 +154,11 @@ export default function MintPage() {
           </div>
         </div>
 
-        {/* ---- Amount selector ---- */}
+        {/* ---- amount selector ---- */}
         <p className="text-center text-[11px] mb-6 tracking-wide">
           SELECT AN AMOUNT TO MINT
         </p>
 
-        {/* premium quantity card */}
         <div className="border border-border mb-6">
           <div className="flex items-stretch">
             <button
@@ -154,7 +176,7 @@ export default function MintPage() {
               value={qtyRaw}
               onChange={(e) => {
                 const raw = e.target.value;
-                if (!/^\d*$/.test(raw)) return;   // digits only, empty allowed
+                if (!/^\d*$/.test(raw)) return;
                 setQtyRaw(raw);
                 const n = parseInt(raw, 10);
                 if (!isNaN(n) && n >= 1) setQty(clamp(n));
@@ -180,7 +202,6 @@ export default function MintPage() {
           </div>
         </div>
 
-        {/* presets */}
         <div className="grid grid-cols-5 gap-2 mb-10">
           {PRESETS.map((n) => {
             const over = n > (remaining || wallCap);
@@ -205,42 +226,38 @@ export default function MintPage() {
           <p className="text-center text-[9px] text-red-800 mb-5">{errorMsg}</p>
         )}
 
-        <div className="flex justify-center mb-4">
+        {/* ---- action: wallet connect / network guard / mint ---- */}
+        <div className="mb-4">
           {!isConnected ? (
-            <WalletConnectButton />
-          ) : phase === "minting" ? (
-            <button disabled className="w-full max-w-xs py-4 text-[11px] bg-ink text-cream opacity-50">
-              CONFIRM IN WALLET…
-            </button>
-          ) : phase === "done" ? (
-            <p className="text-[12px] text-sage py-4">MINTED. WELCOME, HANDLER.</p>
+            <div className="flex justify-center">
+              <WalletConnectButton />
+            </div>
           ) : (
-            <button
-              onClick={async () => {
-                if (!address) return;
-                setPhase("minting"); setErrorMsg(null);
-                try {
-                  await writeContractAsync({
-                    address: EQUIX_ADDRESS, abi: equixAbi, functionName: "mint",
-                    args: [BigInt(qty)], value: parseEther(total),
-                  });
-                  setPhase("done");
-                } catch (e: any) {
-                  setErrorMsg(e.shortMessage ?? e.message ?? "Mint failed");
-                  setPhase("error");
-                }
-              }}
-              disabled={!isLive || soldOut || remaining <= 0}
-              className="w-full max-w-xs py-4 text-[11px] bg-ink text-cream hover:bg-sage transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {!isLive
-                ? "MINT NOT LIVE YET"
-                : soldOut
-                ? "SOLD OUT"
-                : remaining <= 0
-                ? "WALLET LIMIT REACHED"
-                : `MINT ${qty}`}
-            </button>
+            <NetworkGuard>
+              {phase === "minting" ? (
+                <button disabled className="w-full py-4 text-[11px] bg-ink text-cream opacity-50">
+                  CONFIRM IN WALLET…
+                </button>
+              ) : phase === "done" ? (
+                <p className="text-center text-[12px] text-sage py-4">
+                  MINTED. WELCOME, HANDLER.
+                </p>
+              ) : (
+                <button
+                  onClick={mint}
+                  disabled={!isCorrectChain || remaining <= 0 || !isLive || soldOut}
+                  className="w-full py-4 text-[11px] bg-ink text-cream hover:bg-sage transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {!isLive
+                    ? "MINT NOT LIVE YET"
+                    : soldOut
+                    ? "SOLD OUT"
+                    : remaining <= 0
+                    ? "WALLET LIMIT REACHED"
+                    : `MINT ${qty}`}
+                </button>
+              )}
+            </NetworkGuard>
           )}
         </div>
 
@@ -251,7 +268,7 @@ export default function MintPage() {
           <span className="text-ink/40"> · FULLY PUBLIC · NO PRESALE · NO ALLOWLIST</span>
         </p>
 
-        {/* ---- Links ---- */}
+        {/* ---- links ---- */}
         <div className="flex justify-center gap-6 text-[9px] pt-6 border-t border-ink/10">
           <a href={EXPLORER_URL} target="_blank" rel="noreferrer" className="text-ink/50 hover:text-sage transition-colors">
             EXPLORER ↗
