@@ -1,6 +1,6 @@
 // Equix AI — blind-mint contract bindings.
 export const EQUIX_ADDRESS = (import.meta.env.VITE_EQUIX_ADDRESS ??
-  "0x1f923A113a080312D33714Df41D312EaaaeCCEd3) as `0x${string}`;
+  "0x1f923A113a080312D33714Df41D312EaaaeCCEd3") as `0x${string}`;
 
 export const equixAbi = [
   // ---- mint ----
