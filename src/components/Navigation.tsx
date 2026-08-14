@@ -5,7 +5,10 @@ import { Menu, X } from "lucide-react";
 import { WalletConnectButton } from "./WalletConnectButton";
 import { Logo } from "./Logo";
 
+const OPENSEA_COLLECTION = "https://opensea.io/collection/equix-ai-976744474/overview";
+
 const LINKS = [
+  { label: "Mint", href: OPENSEA_COLLECTION, external: true },
   { label: "Explore", to: "/#explore" },
   { label: "My Agents", to: "/my-agents" },
   { label: "Collections", to: "/#collections" },
@@ -17,6 +20,53 @@ export function Navigation() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
 
+  function renderLink(link: typeof LINKS[number], mobile = false) {
+    const cls = mobile
+      ? "font-pixel text-[11px] text-ink hover:text-sage transition-colors"
+      : "font-pixel text-[10px] transition-colors duration-150";
+
+    if ("external" in link && link.external) {
+      return (
+        <a
+          key={link.label}
+          href={link.href}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => mobile && setOpen(false)}
+          className={`${cls} ${mobile ? "" : "text-ink hover:text-sage"}`}
+        >
+          {link.label} ↗
+        </a>
+      );
+    }
+    if (link.to!.startsWith("/#")) {
+      return (
+        <a
+          key={link.label}
+          href={link.to!.slice(1)}
+          onClick={() => mobile && setOpen(false)}
+          className={`${cls} ${mobile ? "" : "text-ink hover:text-sage"}`}
+        >
+          {link.label}
+        </a>
+      );
+    }
+    return (
+      <Link
+        key={link.label}
+        to={link.to!}
+        onClick={() => mobile && setOpen(false)}
+        className={`${cls} ${
+          mobile
+            ? ""
+            : location.pathname === link.to ? "text-sage" : "text-ink hover:text-sage"
+        }`}
+      >
+        {link.label}
+      </Link>
+    );
+  }
+
   return (
     <motion.header
       initial={{ opacity: 0 }}
@@ -25,37 +75,15 @@ export function Navigation() {
       className="sticky top-0 z-50 bg-cream border-b-2 border-border"
     >
       <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-        <Link to="/" onClick={() => setOpen(false)} aria-label="Echo home">
+        <Link to="/" onClick={() => setOpen(false)} aria-label="Equix home">
           <Logo />
         </Link>
 
-        {/* Desktop links */}
         <nav className="hidden lg:flex items-center gap-8">
-          {LINKS.map((link) =>
-            link.to.startsWith("/#") ? (
-              <a
-                key={link.label}
-                href={link.to.slice(1)}
-                className="font-pixel text-[10px] text-ink hover:text-sage transition-colors duration-150"
-              >
-                {link.label}
-              </a>
-            ) : (
-              <Link
-                key={link.label}
-                to={link.to}
-                className={`font-pixel text-[10px] transition-colors duration-150 ${
-                  location.pathname === link.to ? "text-sage" : "text-ink hover:text-sage"
-                }`}
-              >
-                {link.label}
-              </Link>
-            )
-          )}
+          {LINKS.map((l) => renderLink(l))}
           <WalletConnectButton />
         </nav>
 
-        {/* Hamburger — right side, mobile/tablet */}
         <button
           className="lg:hidden p-1 border-2 border-border hover:border-ink transition-colors"
           onClick={() => setOpen((o) => !o)}
@@ -66,7 +94,6 @@ export function Navigation() {
         </button>
       </div>
 
-      {/* Mobile menu panel */}
       <AnimatePresence>
         {open && (
           <motion.nav
@@ -77,27 +104,7 @@ export function Navigation() {
             className="lg:hidden overflow-hidden border-t-2 border-border bg-cream"
           >
             <div className="px-6 py-6 flex flex-col gap-5">
-              {LINKS.map((link) =>
-                link.to.startsWith("/#") ? (
-                  <a
-                    key={link.label}
-                    href={link.to.slice(1)}
-                    onClick={() => setOpen(false)}
-                    className="font-pixel text-[11px] text-ink hover:text-sage transition-colors"
-                  >
-                    {link.label}
-                  </a>
-                ) : (
-                  <Link
-                    key={link.label}
-                    to={link.to}
-                    onClick={() => setOpen(false)}
-                    className="font-pixel text-[11px] text-ink hover:text-sage transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                )
-              )}
+              {LINKS.map((l) => renderLink(l, true))}
               <div className="pt-2 border-t border-border">
                 <WalletConnectButton />
               </div>
