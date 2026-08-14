@@ -1,18 +1,12 @@
 import { Link } from "react-router-dom";
 import { Logo } from "./Logo";
-import { EQUIX_ADDRESS } from "@/lib/contract";
 
 const EXTERNAL = [
   { label: "X", href: "https://x.com/equixAI" },
-  {
-    label: "EXPLORER",
-    href: `https://robinhoodchain.blockscout.com/address/${EQUIX_ADDRESS}`,
-  },
-  { label: "OPENSEA", href: "https://opensea.io/collection/equix-ai" },
+  { label: "OPENSEA", href: "https://opensea.io/collection/equix-ai-976744474/overview" },
 ];
 
 const INTERNAL = [
-  { label: "MINT", to: "/mint" },
   { label: "MY AGENTS", to: "/my-agents" },
   { label: "DOCS", to: "/docs" },
   { label: "ABOUT", to: "/about" },
@@ -63,12 +57,9 @@ export function Footer() {
       </div>
 
       <div className="border-t border-border">
-        <div className="max-w-4xl mx-auto px-6 py-5 flex flex-col sm:flex-row justify-between gap-2">
+        <div className="max-w-4xl mx-auto px-6 py-5 flex justify-center">
           <p className="font-pixel text-[9px] text-ink/30">
             © {new Date().getFullYear()} EQUIX AI
-          </p>
-          <p className="font-pixel text-[9px] text-ink/30 break-all">
-            {EQUIX_ADDRESS.slice(0, 10)}…{EQUIX_ADDRESS.slice(-8)}
           </p>
         </div>
       </div>
