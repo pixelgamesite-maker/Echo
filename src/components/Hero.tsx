@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
 import { Button } from "./ui/Button";
 import { PixelAgent } from "./PixelAgent";
 
@@ -21,7 +20,6 @@ export function Hero() {
           Robinhood Chain.
         </p>
         <div className="mt-10 flex flex-wrap gap-4">
-          <Link to="/mint"><Button variant="primary">Mint Agent</Button></Link>
           <a href="#explore"><Button variant="secondary">Explore Agents</Button></a>
         </div>
       </motion.div>
